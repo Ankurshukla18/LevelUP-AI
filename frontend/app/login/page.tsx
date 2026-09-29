@@ -20,12 +20,15 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await authService.login({ username: email, password });
-      // Requires the backend to return access_token and user info.
-      // Adjust if backend returns something else.
-      login(data.access_token, data.user);
+      const data = await authService.login({
+        email: email.trim(),
+        username: email.trim(),
+        password
+      });
+      await login(data.access_token, data.user);
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      console.error('Login error:', err);
+      setError(err.message || 'Login failed. Please check your email and password.');
     } finally {
       setLoading(false);
     }
@@ -40,21 +43,45 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && <div className="text-sm text-red-500 text-center">{error}</div>}
+            {error && (
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-600 text-center font-medium">
+                {error}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input
+                id="email"
+                type="email"
+                placeholder="alex@demo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Input
+                id="password"
+                type="password"
+                placeholder="password123"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
               {loading ? 'Logging in...' : 'Login'}
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm">
-            Don't have an account? <Link href="/register" className="text-indigo-600 hover:underline">Sign up</Link>
+          <div className="mt-4 text-center text-sm text-slate-600">
+            Don't have an account?{' '}
+            <Link href="/register" className="text-blue-600 hover:underline font-medium">
+              Sign up
+            </Link>
+          </div>
+          <div className="mt-6 pt-4 border-t border-slate-100 text-center text-xs text-slate-500">
+            <span className="font-semibold text-slate-700">Demo Account:</span> alex@demo.com / password123
           </div>
         </CardContent>
       </Card>

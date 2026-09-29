@@ -7,7 +7,7 @@ import { useRouter, usePathname } from 'next/navigation';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (token: string, user: User) => void;
+  login: (token: string, user?: User) => Promise<void>;
   logout: () => void;
 }
 
@@ -21,13 +21,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const initAuth = async () => {
-      const token = localStorage.getItem('token');
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       if (token) {
         try {
           const userData = await authService.me();
           setUser(userData);
         } catch (error) {
           localStorage.removeItem('token');
+          setUser(null);
         }
       }
       setLoading(false);
@@ -36,14 +37,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!loading && !user && pathname.startsWith('/dashboard')) {
-      router.push('/login');
+    if (!loading && !user) {
+      if (pathname.startsWith('/dashboard') || pathname.startsWith('/goals') || pathname.startsWith('/monthly-review')) {
+        router.push('/login');
+      }
     }
   }, [user, loading, pathname, router]);
 
-  const login = (token: string, user: User) => {
+  const login = async (token: string, userData?: User) => {
     localStorage.setItem('token', token);
-    setUser(user);
+    if (userData && userData.email) {
+      setUser(userData);
+    } else {
+      try {
+        const freshUser = await authService.me();
+        setUser(freshUser);
+      } catch (e) {
+        console.error('Failed to load user profile on login:', e);
+      }
+    }
     router.push('/dashboard');
   };
 

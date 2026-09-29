@@ -2,146 +2,283 @@
 
 import React, { useEffect, useState } from "react";
 import Navbar from "@/components/layout/navbar";
-import WeeklyChart from "@/components/dashboard/weekly-chart";
-import { Activity, Target, TrendingUp, Zap, Plus, CheckCircle, BookOpen, Dumbbell, Code, Brain } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Activity, Target, TrendingUp, Zap, Plus, CheckCircle, BookOpen, Dumbbell, Code, Brain, Loader2, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/contexts/auth-context";
+import { analyticsService } from "@/services/analytics";
+import { goalsService } from "@/services/goals";
 
 export default function DashboardPage() {
-  const [greeting, setGreeting] = useState("");
+  const { user } = useAuth();
+  const [greeting, setGreeting] = useState("Welcome");
+  const [loading, setLoading] = useState(true);
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [goals, setGoals] = useState<any[]>([]);
 
   useEffect(() => {
     const hour = new Date().getHours();
     if (hour < 12) setGreeting("Good morning");
     else if (hour < 18) setGreeting("Good afternoon");
     else setGreeting("Good evening");
+
+    async function loadData() {
+      try {
+        setLoading(true);
+        const [analyticsData, goalsData] = await Promise.all([
+          analyticsService.getDashboardAnalytics().catch(() => null),
+          goalsService.getAll().catch(() => [])
+        ]);
+        setAnalytics(analyticsData);
+        setGoals(goalsData || []);
+      } catch (err) {
+        console.error("Dashboard data load error:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
   }, []);
 
-  const categories = [
-    { title: "Academics", icon: BookOpen, progress: 75, streak: 5, color: "bg-blue-100 text-blue-600" },
-    { title: "Fitness", icon: Dumbbell, progress: 60, streak: 3, color: "bg-green-100 text-green-600" },
-    { title: "Coding", icon: Code, progress: 90, streak: 12, color: "bg-purple-100 text-purple-600" },
-    { title: "Personal Growth", icon: Brain, progress: 40, streak: 2, color: "bg-orange-100 text-orange-600" },
-  ];
+  const overallProgress = analytics ? Math.round(analytics.overall_completion_pct || 0) : 0;
+  const activeGoalsCount = analytics ? analytics.active_goals_count : goals.length;
+  const weeklyCompletion = analytics ? Math.round(analytics.weekly_completion_pct || 0) : 0;
+  const currentStreak = analytics ? analytics.current_streak : 0;
+
+  // Chart data from analytics or fallback
+  const chartData = analytics?.weekly_progress_data?.length
+    ? analytics.weekly_progress_data.map((wp: any) => ({
+        week: `Week ${wp.week}`,
+        taskPct: Math.round(wp.task_pct || 0),
+        timePct: Math.round(wp.time_pct || 0)
+      }))
+    : [
+        { week: "Week 1", taskPct: 100, timePct: 94 },
+        { week: "Week 2", taskPct: 80, timePct: 81 },
+        { week: "Week 3", taskPct: 60, timePct: 65 }
+      ];
+
+  const categoryIcons: Record<string, any> = {
+    academics: { icon: BookOpen, color: "bg-blue-100 text-blue-600" },
+    coding: { icon: Code, color: "bg-purple-100 text-purple-600" },
+    fitness: { icon: Dumbbell, color: "bg-green-100 text-green-600" },
+    personal_development: { icon: Brain, color: "bg-orange-100 text-orange-600" },
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <Navbar />
       
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-8">
+        {/* Top Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">{greeting}, User!</h1>
-            <p className="text-slate-500">Here's what's happening with your goals today.</p>
+            <h1 className="text-3xl font-bold text-slate-900">
+              {greeting}, {user?.name || "Student"} 👋
+            </h1>
+            <p className="text-slate-500 mt-1">Here is a summary of your active learning and personal progress.</p>
           </div>
           <div className="flex gap-3">
-            <Link href="/goals/new" className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
-              <Plus size={18} /> New Goal
+            <Link
+              href="/goals/new"
+              className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm font-medium"
+            >
+              <Plus size={18} /> Create Goal
             </Link>
-            <Link href="/goals" className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
-              <CheckCircle size={18} /> View All Goals
+            <Link
+              href="/goals"
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium"
+            >
+              <CheckCircle size={18} /> View Goals
             </Link>
           </div>
         </div>
 
-        {/* Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-lg"><Activity size={24} /></div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Overall Progress</p>
-              <p className="text-2xl font-bold text-slate-900">68%</p>
-            </div>
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+            <Loader2 size={36} className="animate-spin text-blue-600 mb-3" />
+            <p>Loading your dashboard analytics...</p>
           </div>
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-purple-50 text-purple-600 rounded-lg"><Target size={24} /></div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Active Goals</p>
-              <p className="text-2xl font-bold text-slate-900">4</p>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-green-50 text-green-600 rounded-lg"><TrendingUp size={24} /></div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Weekly Completion</p>
-              <p className="text-2xl font-bold text-slate-900">85%</p>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-orange-50 text-orange-600 rounded-lg"><Zap size={24} /></div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Current Streak</p>
-              <p className="text-2xl font-bold text-slate-900">12 Days</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content Area */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Weekly Progress Chart */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-900 mb-4">Weekly Progress</h2>
-              <WeeklyChart />
+        ) : (
+          <>
+            {/* Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><Activity size={24} /></div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Overall Progress</p>
+                  <p className="text-2xl font-extrabold text-slate-900 mt-0.5">{overallProgress}%</p>
+                </div>
+              </div>
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-purple-50 text-purple-600 rounded-xl"><Target size={24} /></div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Goals</p>
+                  <p className="text-2xl font-extrabold text-slate-900 mt-0.5">{activeGoalsCount}</p>
+                </div>
+              </div>
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-green-50 text-green-600 rounded-xl"><TrendingUp size={24} /></div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Weekly Completion</p>
+                  <p className="text-2xl font-extrabold text-slate-900 mt-0.5">{weeklyCompletion}%</p>
+                </div>
+              </div>
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-orange-50 text-orange-600 rounded-xl"><Zap size={24} /></div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Current Streak</p>
+                  <p className="text-2xl font-extrabold text-slate-900 mt-0.5">{currentStreak} Weeks</p>
+                </div>
+              </div>
             </div>
 
-            {/* Categories */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-900 mb-4">Focus Areas</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {categories.map((cat, i) => (
-                  <div key={i} className="p-4 border border-slate-100 rounded-lg flex flex-col gap-3">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-md ${cat.color}`}>
-                          <cat.icon size={20} />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Main Content Area */}
+              <div className="lg:col-span-2 space-y-8">
+                {/* Weekly Progress Chart */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="flex justify-between items-center mb-6">
+                    <div>
+                      <h2 className="text-lg font-bold text-slate-900">Weekly Progress Over Time</h2>
+                      <p className="text-xs text-slate-500">Task completion percentage by week</p>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs font-medium text-slate-600">
+                      <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-600"></span> Task %</span>
+                      <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-indigo-300"></span> Time %</span>
+                    </div>
+                  </div>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="taskColor" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#2563eb" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                          </linearGradient>
+                          <linearGradient id="timeColor" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#818cf8" stopOpacity={0.6}/>
+                            <stop offset="95%" stopColor="#818cf8" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="week" stroke="#94a3b8" fontSize={12} tickLine={false} />
+                        <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} unit="%" domain={[0, 100]} />
+                        <Tooltip />
+                        <Area type="monotone" dataKey="taskPct" name="Task Completion" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#taskColor)" />
+                        <Area type="monotone" dataKey="timePct" name="Time Completion" stroke="#818cf8" strokeWidth={2} fillOpacity={1} fill="url(#timeColor)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Focus Areas / Goals */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-lg font-bold text-slate-900">Active Goals & Focus Areas</h2>
+                    <Link href="/goals" className="text-sm text-blue-600 hover:underline font-medium flex items-center gap-1">
+                      View all <ArrowRight size={14} />
+                    </Link>
+                  </div>
+                  
+                  {goals.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500">
+                      <p>No active goals yet.</p>
+                      <Link href="/goals/new" className="text-blue-600 font-medium hover:underline text-sm mt-2 inline-block">
+                        Create your first goal →
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {goals.slice(0, 4).map((g) => {
+                        const iconData = categoryIcons[g.category] || { icon: Brain, color: "bg-blue-100 text-blue-600" };
+                        const IconComponent = iconData.icon;
+
+                        return (
+                          <Link
+                            key={g.id}
+                            href={`/goals/${g.id}`}
+                            className="p-4 border border-slate-100 rounded-xl hover:border-blue-200 hover:shadow-sm transition-all flex flex-col justify-between group"
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex items-center gap-2.5">
+                                <div className={`p-2 rounded-lg ${iconData.color}`}>
+                                  <IconComponent size={18} />
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-1">
+                                    {g.name}
+                                  </h3>
+                                  <p className="text-xs text-slate-400 capitalize">{g.category.replace("_", " ")}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-3">
+                              <div className="flex justify-between text-xs text-slate-500 mb-1">
+                                <span>{g.available_hours_per_week || 5} hrs/wk</span>
+                                <span className="font-medium capitalize text-slate-700">{g.status}</span>
+                              </div>
+                              <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${g.status === "completed" ? 100 : 50}%` }}></div>
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Sidebar: Recent Activity & Quick Action */}
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                  <h2 className="text-lg font-bold text-slate-900 mb-4">Recent Progress Log</h2>
+                  
+                  {analytics?.recent_progress?.length > 0 ? (
+                    <div className="space-y-4">
+                      {analytics.recent_progress.slice(0, 5).map((pr: any, i: number) => (
+                        <div key={pr.id || i} className="flex gap-3 items-start pb-3 border-b border-slate-100 last:border-0 last:pb-0">
+                          <div className="mt-1 w-2.5 h-2.5 bg-blue-600 rounded-full shrink-0"></div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-slate-800">
+                              Week {pr.week_number} Check-in Logged
+                            </p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {pr.total_completed_tasks} tasks finished • {pr.total_hours} hrs worked
+                            </p>
+                            <div className="text-xs font-semibold text-blue-600 mt-1">
+                              {Math.round(pr.task_completion_pct)}% completion
+                            </div>
+                          </div>
                         </div>
-                        <span className="font-semibold text-slate-700">{cat.title}</span>
-                      </div>
-                      <span className="text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded-full flex items-center gap-1">
-                        <Zap size={12} className="text-orange-500" /> {cat.streak}
-                      </span>
+                      ))}
                     </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-slate-500">Progress</span>
-                        <span className="font-medium text-slate-700">{cat.progress}%</span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2">
-                        <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${cat.progress}%` }}></div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">No recent check-ins recorded yet.</p>
+                  )}
+                </div>
 
-          {/* Sidebar */}
-          <div className="space-y-8">
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-900 mb-4">Recent Activity</h2>
-              <div className="space-y-4">
-                {[
-                  { text: "Completed 'React Tutorial'", time: "2 hours ago" },
-                  { text: "Logged 1h Workout", time: "5 hours ago" },
-                  { text: "Weekly check-in completed", time: "1 day ago" },
-                  { text: "Started new goal 'Read 10 books'", time: "2 days ago" },
-                ].map((act, i) => (
-                  <div key={i} className="flex gap-3 items-start">
-                    <div className="mt-1 w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-700">{act.text}</p>
-                      <p className="text-xs text-slate-400">{act.time}</p>
-                    </div>
+                {/* Quick Check-in Callout */}
+                {goals.length > 0 && (
+                  <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-xl text-white shadow-md">
+                    <h3 className="font-bold text-lg mb-2">Ready for Weekly Check-in?</h3>
+                    <p className="text-blue-100 text-sm mb-4">
+                      Record this week's hours and finished tasks to get fresh AI insights and roadmap suggestions.
+                    </p>
+                    <Link
+                      href={`/goals/${goals[0].id}/checkin`}
+                      className="bg-white text-blue-700 px-4 py-2.5 rounded-lg font-semibold text-sm hover:bg-blue-50 transition-colors inline-block"
+                    >
+                      Start Check-in for {goals[0].name}
+                    </Link>
                   </div>
-                ))}
+                )}
               </div>
-              <button className="w-full mt-6 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-                View All Activity
-              </button>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </main>
     </div>
   );

@@ -22,12 +22,16 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
   });
 
   if (!response.ok) {
+    // Only redirect to login on 401 if it's NOT an auth endpoint itself
     if (response.status === 401 && typeof window !== 'undefined') {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      if (!endpoint.startsWith('/api/auth/login') && !endpoint.startsWith('/api/auth/register')) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
     }
     const errorData = await response.json().catch(() => ({}));
-    throw new ApiError(response.status, errorData.detail || 'API Request Failed');
+    const message = errorData.detail || errorData.message || 'Request failed';
+    throw new ApiError(response.status, message);
   }
 
   return response.json();
