@@ -32,8 +32,35 @@ class UserLogin(BaseModel):
         return self.email or self.username or ""
 
 
+class GoogleAuthRequest(BaseModel):
+    email: EmailStr
+    name: str
+    oauth_id: str
+    avatar_url: Optional[str] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class SetPasswordRequest(BaseModel):
+    password: str
+
+
 class UserResponse(UserBase):
     id: uuid.UUID
+    is_verified: bool = False
+    oauth_provider: Optional[str] = None
+    avatar_url: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
