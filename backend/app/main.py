@@ -1,18 +1,50 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import logging
 from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
-from .database import engine, Base
-from .routers import auth_router, goals_router, roadmap_router, checkins_router, analytics_router, ai_router
+from .database import check_database_connection
+from .routers import (
+    auth_router,
+    goals_router,
+    roadmap_router,
+    checkins_router,
+    analytics_router,
+    ai_router,
+    health_router,
+)
 
-# Import all models so Base.metadata knows about them
-from .models import User, Goal, Roadmap, RoadmapWeek, Task, WeeklyCheckin, CheckinTask, ProgressRecord, AIAnalysis, RoadmapAdjustment  # noqa: F401
+# Import all models so Alembic and Base know about them
+from .models import (  # noqa: F401
+    User,
+    Goal,
+    Roadmap,
+    RoadmapWeek,
+    Task,
+    WeeklyCheckin,
+    CheckinTask,
+    ProgressRecord,
+    AIAnalysis,
+    RoadmapAdjustment,
+)
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Auto-create tables on startup (for development with SQLite)
-    Base.metadata.create_all(bind=engine)
+    # Non-blocking database connection check on startup
+    # Note: Schema is managed via Alembic migrations, NOT Base.metadata.create_all()
+    health = check_database_connection()
+    if health.get("connected"):
+        logger.info(f"Database connected successfully ({health.get('dialect')}, latency: {health.get('latency_ms')}ms)")
+    else:
+        logger.warning(
+            f"Database currently unreachable at startup: {health.get('error')}. "
+            "FastAPI will start anyway. Database-dependent endpoints will return 503 until connection is restored."
+        )
     yield
 
 
@@ -23,6 +55,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Global database connection error handler
+@app.exception_handler(OperationalError)
+async def db_operational_exception_handler(request: Request, exc: OperationalError):
+    logger.error(f"Database operational error: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "detail": "Database is temporarily unavailable. Please check DATABASE_URL and ensure PostgreSQL is running.",
+            "error_type": "DatabaseUnavailable"
+        },
+    )
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -32,6 +77,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(goals_router)
 app.include_router(roadmap_router)
@@ -45,5 +91,6 @@ def root():
     return {
         "message": "Welcome to LifeTrack AI Backend",
         "docs": "/docs",
+        "health": "/api/health/db",
         "version": "1.0.0",
     }

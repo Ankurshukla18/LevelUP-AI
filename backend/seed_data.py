@@ -19,12 +19,17 @@ import uuid
 
 
 def seed():
-    print("Dropping and recreating all tables...")
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    print("Connecting to database and seeding demo records...")
     db = SessionLocal()
 
     try:
+        # Clean existing demo user transactionally without dropping schema tables
+        existing_alex = db.query(User).filter(User.email == "alex@demo.com").first()
+        if existing_alex:
+            print("Cleaning up previous demo records for alex@demo.com...")
+            db.delete(existing_alex)
+            db.commit()
+
         # ──────────────────────────────────────────────────
         # User
         # ──────────────────────────────────────────────────
@@ -32,6 +37,7 @@ def seed():
             email="alex@demo.com",
             name="Alex",
             hashed_password=get_password_hash("password123"),
+            is_verified=True,
         )
         db.add(alex)
         db.commit()

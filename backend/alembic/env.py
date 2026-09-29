@@ -1,16 +1,26 @@
 import logging
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
 from alembic import context
 import os
 import sys
 
+# Ensure backend root is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from app.database import Base
+from app.database import Base, engine
 from app.config import settings
-from app.models import *
+from app.models import (  # noqa: F401
+    User,
+    Goal,
+    Roadmap,
+    RoadmapWeek,
+    Task,
+    WeeklyCheckin,
+    CheckinTask,
+    ProgressRecord,
+    AIAnalysis,
+    RoadmapAdjustment,
+)
 
 config = context.config
 
@@ -20,29 +30,34 @@ if config.config_file_name is not None:
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 target_metadata = Base.metadata
 
+
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
+    """Run migrations in 'offline' mode without an active DB connection."""
+    url = settings.DATABASE_URL
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        compare_type=True,
     )
+
     with context.begin_transaction():
         context.run_migrations()
 
+
 def run_migrations_online() -> None:
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-    with connectable.connect() as connection:
+    """Run migrations in 'online' mode using the shared SQLAlchemy engine."""
+    with engine.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
         )
+
         with context.begin_transaction():
             context.run_migrations()
+
 
 if context.is_offline_mode():
     run_migrations_offline()
