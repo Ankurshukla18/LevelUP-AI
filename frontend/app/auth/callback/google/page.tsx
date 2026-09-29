@@ -4,6 +4,7 @@ import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authService } from '@/services/auth';
 import { useAuth } from '@/contexts/auth-context';
+import { getGoogleRedirectUri } from '@/lib/constants';
 import Link from 'next/link';
 
 function GoogleCallbackContent() {
@@ -57,7 +58,10 @@ function GoogleCallbackContent() {
   }) => {
     try {
       setStatus('loading');
-      const response = await authService.handleGoogleCallback(payload);
+      const response = await authService.handleGoogleCallback({
+        ...payload,
+        redirect_uri: getGoogleRedirectUri(),
+      });
 
       setStatus('success');
       // Pass token, user data, and whether password setup is required
@@ -100,7 +104,7 @@ function GoogleCallbackContent() {
             <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
             <h2 className="text-xl font-bold text-white mb-2">Connecting to Google...</h2>
             <p className="text-slate-400 text-sm">
-              Securing authentication and syncing your LifeTrack AI profile.
+              Securing authentication and syncing your LevelUp AI profile.
             </p>
           </div>
         )}

@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     # Google OAuth 2.0 Credentials (Backend Only - Never exposed to frontend)
     GOOGLE_CLIENT_ID: Optional[str] = None
     GOOGLE_CLIENT_SECRET: Optional[str] = None
-    GOOGLE_REDIRECT_URI: str = "http://localhost:3000/auth/callback/google"
+    GOOGLE_REDIRECT_URI: Optional[str] = None
     FRONTEND_URL: str = "http://localhost:3000"
     ENABLE_OAUTH_MOCK: bool = False
 
@@ -156,6 +156,13 @@ class Settings(BaseSettings):
                 )
         elif not secret:
             raise ValueError("SECRET_KEY cannot be empty.")
+
+        # Ensure GOOGLE_REDIRECT_URI is derived from FRONTEND_URL if not explicitly configured
+        if not self.GOOGLE_REDIRECT_URI or not self.GOOGLE_REDIRECT_URI.strip():
+            base = (self.FRONTEND_URL or "http://localhost:3000").rstrip("/")
+            self.GOOGLE_REDIRECT_URI = f"{base}/auth/callback/google"
+        else:
+            self.GOOGLE_REDIRECT_URI = self.GOOGLE_REDIRECT_URI.strip().rstrip("/")
 
         return self
 

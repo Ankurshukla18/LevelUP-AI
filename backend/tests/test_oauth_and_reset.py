@@ -1,6 +1,15 @@
 import json
+import pytest
 from unittest.mock import MagicMock, patch
 from app.config import settings
+
+
+@pytest.fixture(autouse=True)
+def setup_oauth_test_settings(monkeypatch):
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "test-google-client-id")
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "test-google-client-secret")
+    monkeypatch.setattr(settings, "GOOGLE_REDIRECT_URI", "http://localhost:3000/auth/callback/google")
+    monkeypatch.setattr(settings, "FRONTEND_URL", "http://localhost:3000")
 
 
 class MockGoogleResponse:
@@ -16,10 +25,12 @@ class MockGoogleResponse:
 def _build_google_mock_client(userinfo: dict, valid_code: str = "valid-google-code"):
     """Creates a mock httpx.Client that simulates Google OAuth token exchange and userinfo."""
     mock_client = MagicMock()
+    mock_client.token_post_data = []
 
     def mock_post(url, **kwargs):
         data = kwargs.get("data", {})
         if "oauth2.googleapis.com/token" in url:
+            mock_client.token_post_data.append(data)
             if data.get("code") == valid_code:
                 return MockGoogleResponse(200, {"access_token": "google-valid-access-token"})
             return MockGoogleResponse(400, {"error": "invalid_grant"}, text="Invalid authorization code")
@@ -278,3 +289,46 @@ def test_existing_email_password_login_still_works(client):
     assert "access_token" in data
     assert data["token_type"] == "bearer"
     assert data["user"]["email"] == email
+
+
+def test_google_oauth_redirect_uri_environment_aware(client):
+    """
+    Verifies that:
+    1. GET /api/auth/google/url accepts custom redirect_uri when origin matches FRONTEND_URL or CORS
+    2. POST /api/auth/google/callback forwards the custom redirect_uri to Google token endpoint
+    """
+    custom_redirect = "http://localhost:3000/auth/callback/google"
+    url_res = client.get(f"/api/auth/google/url?redirect_uri={custom_redirect}")
+    assert url_res.status_code == 200
+    assert custom_redirect in url_res.json()["url"]
+
+    # Test with custom production origin configured in FRONTEND_URL
+    with patch.object(settings, "FRONTEND_URL", "https://levelup-ai.vercel.app"):
+        prod_redirect = "https://levelup-ai.vercel.app/auth/callback/google"
+        url_res_prod = client.get(f"/api/auth/google/url?redirect_uri={prod_redirect}")
+        assert url_res_prod.status_code == 200
+        assert prod_redirect in url_res_prod.json()["url"]
+
+        # Token exchange uses prod_redirect
+        userinfo = {"email": "prod_user@example.com", "name": "Prod User", "sub": "sub123"}
+        mock_httpx = _build_google_mock_client(userinfo, valid_code="prod-code")
+        with patch("httpx.Client", return_value=mock_httpx):
+            cb_res = client.post(
+                "/api/auth/google/callback",
+                json={"code": "prod-code", "redirect_uri": prod_redirect}
+            )
+            assert cb_res.status_code == 200
+            assert len(mock_httpx.token_post_data) > 0
+            assert mock_httpx.token_post_data[0]["redirect_uri"] == prod_redirect
+
+
+def test_google_oauth_rejects_untrusted_redirect_uri_origin(client):
+    """
+    Verifies that an untrusted phishing/malicious origin falls back to the safe default redirect URI.
+    """
+    malicious_uri = "https://evil-phishing-site.com/auth/callback/google"
+    url_res = client.get(f"/api/auth/google/url?redirect_uri={malicious_uri}")
+    assert url_res.status_code == 200
+    # Must NOT use the malicious domain, falls back to settings.GOOGLE_REDIRECT_URI
+    assert "evil-phishing-site.com" not in url_res.json()["url"]
+

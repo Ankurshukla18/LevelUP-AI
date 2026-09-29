@@ -1,5 +1,6 @@
 import { api } from './api';
 import { User, TokenWithUser } from '@/types';
+import { getGoogleRedirectUri } from '@/lib/constants';
 
 export const authService = {
   login: (data: { email?: string; username?: string; password: string }): Promise<TokenWithUser> =>
@@ -10,17 +11,27 @@ export const authService = {
 
   me: (): Promise<User> => api.get('/api/auth/me'),
 
-  getGoogleAuthUrl: (): Promise<{ auth_url?: string; url?: string; is_mock?: boolean; mock?: boolean }> =>
-    api.get('/api/auth/google/url'),
+  getGoogleAuthUrl: (redirectUri?: string): Promise<{ auth_url?: string; url?: string; is_mock?: boolean; mock?: boolean; redirect_uri?: string }> => {
+    const uri = redirectUri || getGoogleRedirectUri();
+    const query = uri ? `?redirect_uri=${encodeURIComponent(uri)}` : '';
+    return api.get(`/api/auth/google/url${query}`);
+  },
 
   handleGoogleCallback: (data: {
     code?: string;
     state?: string;
+    redirect_uri?: string;
     mock_email?: string;
     mock_name?: string;
     mock_oauth_id?: string;
     mock_avatar?: string;
-  }): Promise<TokenWithUser> => api.post('/api/auth/google/callback', data),
+  }): Promise<TokenWithUser> => {
+    const payload = {
+      redirect_uri: data.redirect_uri || getGoogleRedirectUri(),
+      ...data,
+    };
+    return api.post('/api/auth/google/callback', payload);
+  },
 
   createFirstPassword: (data: {
     password: string;

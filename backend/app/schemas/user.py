@@ -42,6 +42,7 @@ class GoogleAuthRequest(BaseModel):
 class GoogleCallbackRequest(BaseModel):
     code: Optional[str] = None
     state: Optional[str] = None
+    redirect_uri: Optional[str] = None
     # Support mock/direct test payload when testing without external Google keys
     mock_email: Optional[EmailStr] = None
     mock_name: Optional[str] = None

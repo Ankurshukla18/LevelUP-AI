@@ -1,5 +1,6 @@
 import secrets
 import logging
+from urllib.parse import urlparse
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -77,17 +78,58 @@ def authenticate_user(db: Session, user: UserLogin) -> dict:
     }
 
 
-def get_google_authorization_url() -> dict:
+def resolve_google_redirect_uri(requested_uri: Optional[str] = None) -> str:
+    """
+    Resolves and validates the Google OAuth redirect URI.
+    If requested_uri is provided by the frontend (e.g. from window.location.origin
+    or environment variables), verifies that its origin matches allowed origins
+    (CORS origins, FRONTEND_URL, or localhost in development).
+    Falls back to settings.GOOGLE_REDIRECT_URI.
+    """
+    default_uri = (
+        settings.GOOGLE_REDIRECT_URI
+        or f"{(settings.FRONTEND_URL or 'http://localhost:3000').rstrip('/')}/auth/callback/google"
+    )
+    if not requested_uri or not requested_uri.strip():
+        return default_uri
+
+    clean_uri = requested_uri.strip()
+    parsed = urlparse(clean_uri)
+    if not parsed.scheme or not parsed.netloc:
+        return default_uri
+
+    origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+    # Permitted origins: CORS origins + FRONTEND_URL
+    allowed = {o.rstrip("/") for o in settings.cors_origins}
+    if settings.FRONTEND_URL:
+        allowed.add(settings.FRONTEND_URL.rstrip("/"))
+
+    is_dev = getattr(settings, "ENVIRONMENT", "").lower() != "production"
+    is_localhost = parsed.netloc.startswith("localhost") or parsed.netloc.startswith("127.0.0.1")
+
+    if origin in allowed or (is_dev and is_localhost):
+        return clean_uri
+
+    logger.warning(
+        f"Requested redirect_uri origin '{origin}' is not in allowed origins. Falling back to default: {default_uri}"
+    )
+    return default_uri
+
+
+def get_google_authorization_url(requested_uri: Optional[str] = None) -> dict:
     """
     Generate Google OAuth 2.0 authorization URL.
     Secrets are kept strictly in backend settings.
     """
+    redirect_uri = resolve_google_redirect_uri(requested_uri)
+
     if settings.GOOGLE_CLIENT_ID:
         # Standard Google OAuth 2.0 / OpenID Connect URL
         base = "https://accounts.google.com/o/oauth2/v2/auth"
         params = (
             f"?client_id={settings.GOOGLE_CLIENT_ID}"
-            f"&redirect_uri={settings.GOOGLE_REDIRECT_URI}"
+            f"&redirect_uri={redirect_uri}"
             f"&response_type=code"
             f"&scope=openid%20email%20profile"
             f"&access_type=offline"
@@ -96,6 +138,7 @@ def get_google_authorization_url() -> dict:
         return {
             "url": base + params,
             "auth_url": base + params,
+            "redirect_uri": redirect_uri,
             "mock": False,
             "is_mock": False,
         }
@@ -106,10 +149,11 @@ def get_google_authorization_url() -> dict:
             and getattr(settings, "ENVIRONMENT", "").lower() != "production"
         )
         if is_mock_allowed:
-            mock_callback_url = f"{settings.GOOGLE_REDIRECT_URI}?mock=true"
+            mock_callback_url = f"{redirect_uri}?mock=true"
             return {
                 "url": mock_callback_url,
                 "auth_url": mock_callback_url,
+                "redirect_uri": redirect_uri,
                 "mock": True,
                 "is_mock": True,
                 "note": "Google OAuth credentials not configured; mock simulation mode enabled for development."
@@ -148,6 +192,7 @@ def process_google_callback(db: Session, req: GoogleCallbackRequest) -> dict:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Google OAuth is not properly configured on the server.",
             )
+        resolved_redirect_uri = resolve_google_redirect_uri(req.redirect_uri)
         try:
             with httpx.Client(timeout=10.0) as client:
                 token_res = client.post(
@@ -156,7 +201,7 @@ def process_google_callback(db: Session, req: GoogleCallbackRequest) -> dict:
                         "code": req.code,
                         "client_id": settings.GOOGLE_CLIENT_ID,
                         "client_secret": settings.GOOGLE_CLIENT_SECRET,
-                        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+                        "redirect_uri": resolved_redirect_uri,
                         "grant_type": "authorization_code",
                     },
                 )

@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -31,12 +32,12 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.get("/google/url")
-def get_google_auth_url():
+def get_google_auth_url(redirect_uri: Optional[str] = None):
     """
     Get Google OAuth 2.0 Authorization URL.
     Secrets are kept strictly in backend environment variables.
     """
-    return auth_service.get_google_authorization_url()
+    return auth_service.get_google_authorization_url(requested_uri=redirect_uri)
 
 
 @router.post("/google/callback", response_model=TokenWithUser)
