@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Navbar from "@/components/layout/navbar";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { CheckCircle, Circle, Plus, AlertCircle, Calendar, Clock, Sparkles, Loader2, Trash2, ArrowRight } from "lucide-react";
+import { CheckCircle, Circle, Plus, AlertCircle, Calendar, Clock, Sparkles, Loader2, Trash2, ArrowRight, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { goalsService } from "@/services/goals";
@@ -160,15 +160,12 @@ export default function GoalDetailPage() {
   const analyticsData = progressRecords.length > 0
     ? progressRecords.map((pr: any) => ({
         week: `W${pr.week_number}`,
-        progress: Math.round(pr.task_completion_pct || 0),
-        plannedHours: goal.available_hours_per_week || 8,
-        actualHours: pr.total_hours || 0,
-        consistency: Math.round(pr.consistency_pct || 0)
+        progress: Math.round(pr.task_completion_pct ?? 0),
+        plannedHours: goal.available_hours_per_week ?? 0,
+        actualHours: pr.total_hours ?? 0,
+        consistency: Math.round(pr.consistency_pct ?? 0)
       }))
-    : [
-        { week: "W1", progress: 80, plannedHours: goal.available_hours_per_week || 8, actualHours: 7.5, consistency: 85 },
-        { week: "W2", progress: 65, plannedHours: goal.available_hours_per_week || 8, actualHours: 6.5, consistency: 75 }
-      ];
+    : [];
 
   // Calculate task summary
   let totalTasks = 0;
@@ -221,7 +218,7 @@ export default function GoalDetailPage() {
                 <Calendar size={14} /> Target: {new Date(goal.target_date).toLocaleDateString()}
               </span>
               <span className="flex items-center gap-1">
-                <Clock size={14} /> Capacity: {goal.available_hours_per_week} hrs/week
+                <Clock size={14} /> Capacity: {goal.available_hours_per_week ?? 0} hrs/week
               </span>
             </div>
           </div>
@@ -488,40 +485,56 @@ export default function GoalDetailPage() {
                 <p className="text-xs text-slate-500 mb-6">Calculated strictly in Python backend services</p>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* AreaChart */}
-                <div className="border border-slate-200 rounded-xl p-5">
-                  <h3 className="font-bold text-slate-800 text-sm mb-4">Task Completion (%) Over Weeks</h3>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={analyticsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="week" stroke="#94a3b8" fontSize={12} tickLine={false} />
-                        <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} unit="%" domain={[0, 100]} />
-                        <Tooltip />
-                        <Area type="monotone" dataKey="progress" name="Completion %" stroke="#2563eb" strokeWidth={2} fill="#eff6ff" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
+              {analyticsData.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-sm">
+                  <TrendingUp size={48} className="mx-auto text-slate-300 mb-3" />
+                  <h3 className="text-lg font-bold text-slate-700 mb-1">No Progress Data Yet</h3>
+                  <p className="text-slate-500 text-sm max-w-md mx-auto">
+                    Complete your first weekly check-in to see progress metrics.
+                  </p>
+                  <Link
+                    href={`/goals/${goalId}/checkin`}
+                    className="mt-4 inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    Go to Weekly Check-in <ArrowRight size={14} />
+                  </Link>
                 </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* AreaChart */}
+                  <div className="border border-slate-200 rounded-xl p-5">
+                    <h3 className="font-bold text-slate-800 text-sm mb-4">Task Completion (%) Over Weeks</h3>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={analyticsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="week" stroke="#94a3b8" fontSize={12} tickLine={false} />
+                          <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} unit="%" domain={[0, 100]} />
+                          <Tooltip />
+                          <Area type="monotone" dataKey="progress" name="Completion %" stroke="#2563eb" strokeWidth={2} fill="#eff6ff" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
 
-                {/* BarChart */}
-                <div className="border border-slate-200 rounded-xl p-5">
-                  <h3 className="font-bold text-slate-800 text-sm mb-4">Planned vs Actual Hours</h3>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={analyticsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="week" stroke="#94a3b8" fontSize={12} tickLine={false} />
-                        <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} unit="h" />
-                        <Tooltip />
-                        <Bar dataKey="plannedHours" name="Planned Hours" fill="#cbd5e1" radius={[4,4,0,0]} />
-                        <Bar dataKey="actualHours" name="Actual Hours" fill="#2563eb" radius={[4,4,0,0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                  {/* BarChart */}
+                  <div className="border border-slate-200 rounded-xl p-5">
+                    <h3 className="font-bold text-slate-800 text-sm mb-4">Planned vs Actual Hours</h3>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={analyticsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="week" stroke="#94a3b8" fontSize={12} tickLine={false} />
+                          <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} unit="h" />
+                          <Tooltip />
+                          <Bar dataKey="plannedHours" name="Planned Hours" fill="#cbd5e1" radius={[4,4,0,0]} />
+                          <Bar dataKey="actualHours" name="Actual Hours" fill="#2563eb" radius={[4,4,0,0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 

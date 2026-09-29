@@ -1,13 +1,27 @@
 import secrets
+import logging
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
-from ..schemas.user import UserCreate, UserLogin, GoogleAuthRequest, SetPasswordRequest
+import httpx
+
+from ..config import settings
+from ..schemas.user import (
+    UserCreate,
+    UserLogin,
+    GoogleAuthRequest,
+    GoogleCallbackRequest,
+    CreateFirstPasswordRequest,
+)
 from ..models.user import User
 from ..utils.security import get_password_hash, verify_password, create_access_token
 
+logger = logging.getLogger(__name__)
+
 
 def register_user(db: Session, user: UserCreate) -> User:
+    """Register a new user with email and password."""
     db_user = db.query(User).filter(User.email == user.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -29,6 +43,10 @@ def register_user(db: Session, user: UserCreate) -> User:
 
 
 def authenticate_user(db: Session, user: UserLogin) -> dict:
+    """
+    Authenticate a user via email and password.
+    Works for both traditional users and Google OAuth users who have created a password.
+    """
     email = user.get_email()
     db_user = db.query(User).filter(User.email == email).first()
     if not db_user:
@@ -37,11 +55,11 @@ def authenticate_user(db: Session, user: UserLogin) -> dict:
             detail="Incorrect email or password",
         )
 
-    # If user registered via Google OAuth and hasn't created a password yet
+    # If account was created with Google OAuth and no password has been configured yet
     if not db_user.hashed_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This account was created with Google Sign-In. Please sign in with Google or use Set Password.",
+            detail="This account was registered with Google Sign-In and has not set a password yet. Please click 'Continue with Google'.",
         )
 
     if not verify_password(user.password, db_user.hashed_password):
@@ -54,100 +72,238 @@ def authenticate_user(db: Session, user: UserLogin) -> dict:
     return {
         "access_token": access_token,
         "token_type": "bearer",
+        "requires_password_setup": False,
         "user": db_user,
     }
 
 
-def authenticate_google_user(db: Session, req: GoogleAuthRequest) -> dict:
+def get_google_authorization_url() -> dict:
     """
-    Authenticate or register a user via Google OAuth.
-    If the user already exists (by email), links the Google account.
-    If the user is new, creates an account with verified email.
+    Generate Google OAuth 2.0 authorization URL.
+    Secrets are kept strictly in backend settings.
     """
-    db_user = db.query(User).filter(User.email == req.email).first()
+    if settings.GOOGLE_CLIENT_ID:
+        # Standard Google OAuth 2.0 / OpenID Connect URL
+        base = "https://accounts.google.com/o/oauth2/v2/auth"
+        params = (
+            f"?client_id={settings.GOOGLE_CLIENT_ID}"
+            f"&redirect_uri={settings.GOOGLE_REDIRECT_URI}"
+            f"&response_type=code"
+            f"&scope=openid%20email%20profile"
+            f"&access_type=offline"
+            f"&prompt=select_account"
+        )
+        return {
+            "url": base + params,
+            "auth_url": base + params,
+            "mock": False,
+            "is_mock": False,
+        }
+    else:
+        # Development simulation only when explicitly enabled AND never in production
+        is_mock_allowed = (
+            getattr(settings, "ENABLE_OAUTH_MOCK", False) is True
+            and getattr(settings, "ENVIRONMENT", "").lower() != "production"
+        )
+        if is_mock_allowed:
+            mock_callback_url = f"{settings.GOOGLE_REDIRECT_URI}?mock=true"
+            return {
+                "url": mock_callback_url,
+                "auth_url": mock_callback_url,
+                "mock": True,
+                "is_mock": True,
+                "note": "Google OAuth credentials not configured; mock simulation mode enabled for development."
+            }
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google OAuth is not configured on this server.",
+        )
+
+
+def process_google_callback(db: Session, req: GoogleCallbackRequest) -> dict:
+    """
+    Handles Google OAuth callback:
+    1. Strictly validates Google authorization code with official Google OAuth endpoints.
+    2. Finds existing user by email or creates a new user.
+    3. If new or user has no password -> requires_password_setup = True.
+    4. If user already created password -> requires_password_setup = False.
+    5. Returns JWT access token and user profile.
+    """
+    email = None
+    name = None
+    oauth_id = None
+    avatar_url = None
+
+    # Check whether development mock mode is explicitly permitted (never in production)
+    is_mock_allowed = (
+        getattr(settings, "ENABLE_OAUTH_MOCK", False) is True
+        and getattr(settings, "ENVIRONMENT", "").lower() != "production"
+    )
+
+    # Handle real Google OAuth code exchange
+    if req.code:
+        if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+            logger.error("Google OAuth client ID or client secret is not configured on the server.")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Google OAuth is not properly configured on the server.",
+            )
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                token_res = client.post(
+                    "https://oauth2.googleapis.com/token",
+                    data={
+                        "code": req.code,
+                        "client_id": settings.GOOGLE_CLIENT_ID,
+                        "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+                        "grant_type": "authorization_code",
+                    },
+                )
+                if token_res.status_code != 200:
+                    logger.error(f"Google token exchange failed: {token_res.text}")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Failed to exchange authorization code with Google.",
+                    )
+
+                tokens = token_res.json()
+                access_token = tokens.get("access_token")
+                if not access_token:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Google OAuth response missing access token.",
+                    )
+
+                # Fetch verified user profile directly from Google
+                userinfo_res = client.get(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                if userinfo_res.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Failed to fetch user profile from Google.",
+                    )
+
+                userinfo = userinfo_res.json()
+                email = userinfo.get("email")
+                name = userinfo.get("name") or (email.split("@")[0] if email else "Google User")
+                oauth_id = userinfo.get("sub")
+                avatar_url = userinfo.get("picture")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error communicating with Google OAuth: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"OAuth communication error: {str(e)}",
+            )
+    elif is_mock_allowed and req.mock_email:
+        # Development-only sandbox simulation, strictly disabled in production
+        logger.warning(f"Using development mock Google login for: {req.mock_email}")
+        email = req.mock_email
+        name = req.mock_name or "Demo User"
+        oauth_id = req.mock_oauth_id or f"google-sub-{secrets.token_hex(8)}"
+        avatar_url = req.mock_avatar or "https://api.dicebear.com/7.x/avataaars/svg?seed=GoogleUser"
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Authorization code is required for Google authentication.",
+        )
+
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google account did not return a valid email address.",
+        )
+
+    # Check if user already exists in database
+    db_user = db.query(User).filter(User.email == email).first()
+
     if db_user:
-        # Link Google account if not linked
-        if not db_user.oauth_id:
+        # Existing user: Link Google account if not linked
+        if not db_user.oauth_provider:
             db_user.oauth_provider = "google"
-            db_user.oauth_id = req.oauth_id
-        if req.avatar_url and not db_user.avatar_url:
-            db_user.avatar_url = req.avatar_url
+            db_user.oauth_id = oauth_id
+        if avatar_url and not db_user.avatar_url:
+            db_user.avatar_url = avatar_url
         db_user.is_verified = True
         db.commit()
         db.refresh(db_user)
+
+        # Check if user already has a password configured
+        has_password = bool(db_user.hashed_password)
+        requires_password_setup = not has_password
     else:
-        # Create new Google OAuth user
+        # New Google user: Create account without password
         db_user = User(
-            email=req.email,
-            name=req.name,
-            hashed_password=None,  # No password initially
+            email=email,
+            name=name,
+            hashed_password=None,
             oauth_provider="google",
-            oauth_id=req.oauth_id,
-            avatar_url=req.avatar_url,
-            is_verified=True,  # Google emails are pre-verified
+            oauth_id=oauth_id,
+            avatar_url=avatar_url,
+            is_verified=True,  # Google verified
         )
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
 
+        # New Google account must configure a password
+        requires_password_setup = True
+
     access_token = create_access_token(data={"sub": db_user.email})
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
+        "requires_password_setup": requires_password_setup,
         "user": db_user,
     }
 
 
+def create_first_password(db: Session, current_user: User, req: CreateFirstPasswordRequest) -> dict:
+    """
+    Mandatory password creation for newly created Google users.
+    Validates password, hashes with bcrypt, updates user, and unlocks dashboard access.
+    """
+    if req.confirm_password and req.password != req.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match.",
+        )
+
+    if len(req.password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters long.",
+        )
+
+    current_user.hashed_password = get_password_hash(req.password)
+    db.commit()
+    db.refresh(current_user)
+
+    # Issue fresh token
+    access_token = create_access_token(data={"sub": current_user.email})
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "requires_password_setup": False,
+        "message": "Password created successfully! You can now log in with either Google or email + password.",
+        "user": current_user,
+    }
+
+
 def set_user_password(db: Session, current_user: User, password: str) -> dict:
-    """Allows a user (including Google OAuth users) to create or update their password."""
+    """Allows an authenticated user to update their password."""
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     current_user.hashed_password = get_password_hash(password)
     db.commit()
     db.refresh(current_user)
     return {"message": "Password updated successfully"}
-
-
-def request_password_reset(db: Session, email: str) -> dict:
-    """Generate password reset token."""
-    db_user = db.query(User).filter(User.email == email).first()
-    if not db_user:
-        # Return generic message to prevent email enumeration
-        return {"message": "If this email is registered, a password reset link has been generated."}
-
-    token = secrets.token_urlsafe(32)
-    db_user.reset_password_token = token
-    db_user.reset_password_token_expires_at = datetime.now(timezone.utc) + timedelta(hours=2)
-    db.commit()
-
-    return {
-        "message": "If this email is registered, a password reset link has been generated.",
-        "reset_token": token,  # In production sent via email
-    }
-
-
-def confirm_password_reset(db: Session, token: str, new_password: str) -> dict:
-    """Validate token and reset user password."""
-    now = datetime.now(timezone.utc)
-    db_user = (
-        db.query(User)
-        .filter(User.reset_password_token == token)
-        .first()
-    )
-    if not db_user:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-
-    if db_user.reset_password_token_expires_at:
-        expires_at = db_user.reset_password_token_expires_at
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
-        if expires_at < now:
-            raise HTTPException(status_code=400, detail="Reset token has expired")
-
-    db_user.hashed_password = get_password_hash(new_password)
-    db_user.reset_password_token = None
-    db_user.reset_password_token_expires_at = None
-    db.commit()
-
-    return {"message": "Password has been reset successfully. You can now log in."}
 
 
 def verify_email(db: Session, token: str) -> dict:

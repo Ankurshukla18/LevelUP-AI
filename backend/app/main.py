@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from .database import check_database_connection
+from .config import settings
 from .routers import (
     auth_router,
     goals_router,
@@ -49,8 +50,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="LifeTrack AI",
-    description="AI-powered student progress tracking platform",
+    title="LevelUp AI",
+    description="AI-powered personal progress management platform",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -70,8 +71,8 @@ async def db_operational_exception_handler(request: Request, exc: OperationalErr
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_origins=settings.cors_origins,
+    allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -89,7 +90,7 @@ app.include_router(ai_router)
 @app.get("/")
 def root():
     return {
-        "message": "Welcome to LifeTrack AI Backend",
+        "message": "Welcome to LevelUp AI Backend",
         "docs": "/docs",
         "health": "/api/health/db",
         "version": "1.0.0",

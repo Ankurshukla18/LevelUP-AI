@@ -21,11 +21,11 @@ export default function CheckinPage() {
   const [tasks, setTasks] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
-    hoursSpent: "7",
+    hoursSpent: "",
     accomplishments: "",
     problemsFaced: "",
     difficultyLevel: "moderate",
-    selfRating: "7",
+    selfRating: "5",
     notes: ""
   });
 
@@ -86,17 +86,33 @@ export default function CheckinPage() {
       return;
     }
 
+    if (formData.hoursSpent === "" || isNaN(parseFloat(formData.hoursSpent)) || parseFloat(formData.hoursSpent) < 0) {
+      setErrorMessage("Please enter a valid number of hours spent this week.");
+      return;
+    }
+
+    if (!formData.accomplishments.trim()) {
+      setErrorMessage("Please enter your accomplishments for this week.");
+      return;
+    }
+
+    const ratingNum = parseInt(formData.selfRating, 10);
+    if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 10) {
+      setErrorMessage("Please select a valid self-rating between 1 and 10.");
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage("");
 
     try {
       const payload = {
         week_id: selectedWeek.id,
-        hours_spent: parseFloat(formData.hoursSpent) || 0,
-        accomplishments: formData.accomplishments.trim() || "Worked on weekly tasks.",
+        hours_spent: parseFloat(formData.hoursSpent),
+        accomplishments: formData.accomplishments.trim(),
         problems_faced: formData.problemsFaced.trim() || undefined,
         difficulty_level: formData.difficultyLevel,
-        self_rating: parseInt(formData.selfRating, 10) || 7,
+        self_rating: ratingNum,
         notes: formData.notes.trim() || undefined,
         tasks: tasks.map(t => ({
           task_id: t.id,
@@ -123,7 +139,7 @@ export default function CheckinPage() {
       setAnalysis(res);
     } catch (err: any) {
       console.error("AI Analysis failed:", err);
-      alert("Failed to analyze week. Please try again.");
+      alert(err.message || "Failed to analyze week. Please try again.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -137,7 +153,7 @@ export default function CheckinPage() {
       setAdjustmentApplied(true);
     } catch (err: any) {
       console.error("Failed to apply adjustment:", err);
-      alert("Failed to apply adjustment.");
+      alert(err.message || "Failed to apply adjustment.");
     } finally {
       setIsAdjusting(false);
     }

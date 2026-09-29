@@ -2,8 +2,8 @@ import pytest
 
 @pytest.fixture
 def token(client):
-    client.post("/api/auth/register", json={"email": "goal_test@example.com", "name": "Test", "password": "pass"})
-    response = client.post("/api/auth/login", json={"email": "goal_test@example.com", "password": "pass"})
+    client.post("/api/auth/register", json={"email": "goal_test@example.com", "name": "Test", "password": "password123"})
+    response = client.post("/api/auth/login", json={"email": "goal_test@example.com", "password": "password123"})
     return response.json()["access_token"]
 
 def test_create_goal(client, token):

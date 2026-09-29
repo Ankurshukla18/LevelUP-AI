@@ -14,7 +14,7 @@ export default function LandingPage() {
               Plan. Track. Analyze. <span className="text-indigo-600">Improve.</span>
             </h1>
             <p className="text-xl text-slate-600 mb-10 max-w-2xl mx-auto">
-              LifeTrack AI is your intelligent workspace to define goals, break them down into AI-generated roadmaps, and track your weekly progress with actionable insights.
+              LevelUp AI is an AI-powered personal progress management platform that helps users set goals, generate personalized roadmaps, track progress, analyze performance, and continuously improve.
             </p>
             <div className="flex gap-4 justify-center">
               <Link href="/register">
@@ -29,7 +29,7 @@ export default function LandingPage() {
 
         <section id="features" className="py-20 bg-slate-50">
           <div className="container mx-auto px-4 max-w-6xl">
-            <h2 className="text-3xl font-bold text-center mb-16">How LifeTrack AI Helps</h2>
+            <h2 className="text-3xl font-bold text-center mb-16">How LevelUp AI Helps</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
               {[
                 { title: 'Smart Goals', desc: 'Define what you want to achieve with structured parameters.', icon: Target },

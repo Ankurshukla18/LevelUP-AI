@@ -63,31 +63,23 @@ export default function AnalyticsPage() {
     loadData();
   }, []);
 
-  const totalHours = analytics?.total_hours_spent || 22.5;
-  const overallCompletion = Math.round(analytics?.overall_completion_pct || 72);
-  const streak = analytics?.current_streak || 3;
+  const totalHours = analytics?.total_hours_spent ?? 0;
+  const overallCompletion = Math.round(analytics?.overall_completion_pct ?? 0);
+  const streak = analytics?.current_streak ?? 0;
   const activeCount = analytics?.active_goals_count ?? goals.length;
 
   // Chart: Weekly Progress
   const weeklyChartData = analytics?.weekly_progress_data?.length
     ? analytics.weekly_progress_data.map((wp: any) => ({
         week: `Week ${wp.week}`,
-        taskPct: Math.round(wp.task_pct || 0),
-        timePct: Math.round(wp.time_pct || 0),
-        consistency: Math.round(((wp.task_pct || 0) + (wp.time_pct || 0)) / 2)
+        taskPct: Math.round(wp.task_pct ?? 0),
+        timePct: Math.round(wp.time_pct ?? 0),
+        consistency: Math.round(((wp.task_pct ?? 0) + (wp.time_pct ?? 0)) / 2)
       }))
-    : [
-        { week: "Week 1", taskPct: 100, timePct: 94, consistency: 97 },
-        { week: "Week 2", taskPct: 80, timePct: 81, consistency: 81 },
-        { week: "Week 3", taskPct: 40, timePct: 50, consistency: 45 }
-      ];
+    : [];
 
   // Chart: Category Distribution
-  const categoryData = Object.entries(analytics?.goals_by_category || {
-    coding: 1,
-    academics: 1,
-    fitness: 1
-  }).map(([key, count]: [string, any]) => ({
+  const categoryData = Object.entries(analytics?.goals_by_category || {}).map(([key, count]: [string, any]) => ({
     name: key.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase()),
     value: count
   }));
@@ -167,16 +159,24 @@ export default function AnalyticsPage() {
                 </div>
 
                 <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={weeklyChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="week" stroke="#94a3b8" fontSize={12} tickLine={false} />
-                      <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} unit="%" domain={[0, 150]} />
-                      <Tooltip />
-                      <Bar dataKey="taskPct" name="Task %" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="timePct" name="Time %" fill="#818cf8" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {weeklyChartData.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center px-4">
+                      <TrendingUp size={36} className="text-slate-300 mb-2" />
+                      <p className="font-medium text-slate-600">No weekly check-in records available yet.</p>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm">Log weekly check-ins to track planned vs realized completion trends.</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={weeklyChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="week" stroke="#94a3b8" fontSize={12} tickLine={false} />
+                        <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} unit="%" domain={[0, 150]} />
+                        <Tooltip />
+                        <Bar dataKey="taskPct" name="Task %" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="timePct" name="Time %" fill="#818cf8" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
 
@@ -188,25 +188,33 @@ export default function AnalyticsPage() {
                 </div>
 
                 <div className="h-56">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={categoryData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {categoryData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {categoryData.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center px-4">
+                      <Target size={36} className="text-slate-300 mb-2" />
+                      <p className="font-medium text-slate-600">No goals categorized yet.</p>
+                      <p className="text-xs text-slate-400 mt-1 max-w-xs">Create your first goal to view category breakdown.</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={categoryData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={80}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {categoryData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 flex justify-around text-center text-xs text-slate-500">
@@ -235,23 +243,31 @@ export default function AnalyticsPage() {
               </div>
 
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={weeklyChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="week" stroke="#94a3b8" fontSize={12} tickLine={false} />
-                    <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} unit="%" domain={[0, 100]} />
-                    <Tooltip />
-                    <Line
-                      type="monotone"
-                      dataKey="consistency"
-                      name="Consistency Index"
-                      stroke="#10b981"
-                      strokeWidth={3}
-                      dot={{ r: 5, fill: "#10b981" }}
-                      activeDot={{ r: 7 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                {weeklyChartData.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center px-4">
+                    <Activity size={36} className="text-slate-300 mb-2" />
+                    <p className="font-medium text-slate-600">No consistency data yet.</p>
+                    <p className="text-xs text-slate-400 mt-1 max-w-sm">Consistency index will be computed once you log consecutive weekly check-ins.</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={weeklyChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="week" stroke="#94a3b8" fontSize={12} tickLine={false} />
+                      <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} unit="%" domain={[0, 100]} />
+                      <Tooltip />
+                      <Line
+                        type="monotone"
+                        dataKey="consistency"
+                        name="Consistency Index"
+                        stroke="#10b981"
+                        strokeWidth={3}
+                        dot={{ r: 5, fill: "#10b981" }}
+                        activeDot={{ r: 7 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
 
@@ -281,7 +297,7 @@ export default function AnalyticsPage() {
                             {g.category.replace("_", " ")}
                           </span>
                         </td>
-                        <td className="py-4 px-6">{g.available_hours_per_week || 5} hrs/wk</td>
+                        <td className="py-4 px-6">{g.available_hours_per_week ?? 0} hrs/wk</td>
                         <td className="py-4 px-6">{new Date(g.target_date).toLocaleDateString()}</td>
                         <td className="py-4 px-6">
                           <span className="capitalize font-semibold text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">

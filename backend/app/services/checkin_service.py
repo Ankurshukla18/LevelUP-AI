@@ -1,30 +1,54 @@
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 import uuid
 from ..models.checkin import WeeklyCheckin, CheckinTask
 from ..models.goal import Goal
-from ..models.roadmap import RoadmapWeek, Task
+from ..models.roadmap import Roadmap, RoadmapWeek, Task
 from ..schemas.checkin import CheckinCreate
 from ..models.user import User
 
 def create_checkin(db: Session, goal_id: uuid.UUID, checkin_data: CheckinCreate, user: User) -> WeeklyCheckin:
+    # 1. Verify goal belongs to current authenticated user
     goal = db.query(Goal).filter(Goal.id == goal_id, Goal.user_id == user.id).first()
     if not goal:
-        raise HTTPException(status_code=404, detail="Goal not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found")
         
-    week = db.query(RoadmapWeek).filter(RoadmapWeek.id == checkin_data.week_id).first()
+    # 2. Verify week belongs to this specific goal (prevent IDOR across goals/users)
+    week = (
+        db.query(RoadmapWeek)
+        .join(Roadmap, RoadmapWeek.roadmap_id == Roadmap.id)
+        .filter(RoadmapWeek.id == checkin_data.week_id, Roadmap.goal_id == goal.id)
+        .first()
+    )
     if not week:
-        raise HTTPException(status_code=404, detail="Week not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Week not found or does not belong to the specified goal."
+        )
         
+    # 3. Verify all supplied tasks actually belong to this week
+    task_models_by_id = {}
+    for t in checkin_data.tasks:
+        task_model = (
+            db.query(Task)
+            .filter(Task.id == t.task_id, Task.roadmap_week_id == week.id)
+            .first()
+        )
+        if not task_model:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task {t.task_id} not found in the specified week."
+            )
+        task_models_by_id[t.task_id] = task_model
+
     # Calculate completed/skipped tasks
     completed_count = sum(1 for t in checkin_data.tasks if t.is_completed)
-    skipped_tasks = []
-    
-    for t in checkin_data.tasks:
-        if not t.is_completed:
-            task_model = db.query(Task).filter(Task.id == t.task_id).first()
-            if task_model:
-                skipped_tasks.append(task_model.title)
+    skipped_tasks = [
+        task_models_by_id[t.task_id].title
+        for t in checkin_data.tasks
+        if not t.is_completed and t.task_id in task_models_by_id
+    ]
     
     db_checkin = WeeklyCheckin(
         goal_id=goal_id,
@@ -52,11 +76,12 @@ def create_checkin(db: Session, goal_id: uuid.UUID, checkin_data: CheckinCreate,
         )
         db.add(ct)
         
-        # update actual task status
-        if task_data.is_completed:
-            actual_task = db.query(Task).filter(Task.id == task_data.task_id).first()
-            if actual_task:
-                actual_task.is_completed = True
+        # Safely update verified task belonging to current user's goal week
+        task_model = task_models_by_id.get(task_data.task_id)
+        if task_model:
+            task_model.is_completed = task_data.is_completed
+            task_model.status = "completed" if task_data.is_completed else "pending"
+            task_model.completed_at = datetime.now(timezone.utc) if task_data.is_completed else None
                 
     db.commit()
     db.refresh(db_checkin)

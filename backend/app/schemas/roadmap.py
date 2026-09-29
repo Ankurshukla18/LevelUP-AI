@@ -1,22 +1,22 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
 from datetime import date, datetime
 import uuid
 from ..models.roadmap import WeekStatus
 
 class TaskBase(BaseModel):
-    title: str
-    description: Optional[str] = None
-    estimated_hours: Optional[float] = None
+    title: str = Field(min_length=1, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=5000)
+    estimated_hours: Optional[float] = Field(default=None, ge=0, le=168)
     order: int
 
 class TaskCreate(TaskBase):
     pass
 
 class TaskUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    estimated_hours: Optional[float] = None
+    title: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=5000)
+    estimated_hours: Optional[float] = Field(default=None, ge=0, le=168)
     is_completed: Optional[bool] = None
     order: Optional[int] = None
 
@@ -31,18 +31,18 @@ class TaskResponse(TaskBase):
 
 class RoadmapWeekBase(BaseModel):
     week_number: int
-    title: str
-    description: Optional[str] = None
+    title: str = Field(min_length=1, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=5000)
     start_date: date
     end_date: date
-    estimated_hours: float
+    estimated_hours: float = Field(ge=0, le=168)
 
 class RoadmapWeekUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
+    title: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=5000)
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    estimated_hours: Optional[float] = None
+    estimated_hours: Optional[float] = Field(default=None, ge=0, le=168)
     status: Optional[WeekStatus] = None
 
 class RoadmapWeekResponse(RoadmapWeekBase):

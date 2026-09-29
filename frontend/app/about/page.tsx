@@ -16,7 +16,7 @@ export default function AboutPage() {
               Master Your Life with AI
             </h1>
             <p className="text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto">
-              LifeTrack AI is your intelligent companion for setting, tracking, and achieving your most ambitious goals across all areas of life.
+              LevelUp AI is your intelligent companion for setting, tracking, and achieving your most ambitious goals across all areas of life.
             </p>
           </div>
         </section>
@@ -61,7 +61,7 @@ export default function AboutPage() {
       </main>
 
       <footer className="bg-slate-900 text-slate-400 py-8 text-center">
-        <p>&copy; {new Date().getFullYear()} LifeTrack AI. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} LevelUp AI. All rights reserved.</p>
       </footer>
     </div>
   );

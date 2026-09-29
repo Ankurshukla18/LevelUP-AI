@@ -9,7 +9,7 @@ from ..dependencies.auth import get_current_user
 from ..models.user import User
 from ..models.goal import Goal
 from ..models.roadmap import Roadmap, RoadmapWeek, Task
-from ..ai.mock_ai_service import MockAIService
+from ..ai.factory import get_ai_service
 
 router = APIRouter(tags=["roadmap"])
 
@@ -24,12 +24,20 @@ def generate_roadmap(goal_id: uuid.UUID, db: Session = Depends(get_db), current_
     old_roadmaps = db.query(Roadmap).filter(Roadmap.goal_id == goal_id).all()
     for r in old_roadmaps:
         r.is_active = False
-    
-    ai_service = MockAIService()
+
+    ai_service = get_ai_service()
     goal_info = {
         "name": goal.name,
+        "title": goal.title,
+        "category": str(goal.category) if goal.category else "",
+        "description": goal.description or "",
+        "current_level": goal.current_level or "Beginner",
+        "target_outcome": goal.target_outcome or "",
         "start_date": goal.start_date,
-        "target_date": goal.target_date
+        "target_date": goal.target_date,
+        "available_hours_per_week": goal.available_hours_per_week or 5.0,
+        "priority": str(goal.priority) if goal.priority else "medium",
+        "preferred_days": goal.preferred_days,
     }
     generated = ai_service.generate_roadmap(goal_info)
     

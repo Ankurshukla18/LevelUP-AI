@@ -1,7 +1,9 @@
 # Environment variables & secrets
 .env
 .env.*
+*.env
 !.env.example
+!.env.template
 
 # Python
 __pycache__/
@@ -15,8 +17,11 @@ env/
 *.db
 *.sqlite
 *.sqlite3
+*.db-journal
 
-# Pytest / Cache
+# Pytest / Cache & Logs
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
+*.log

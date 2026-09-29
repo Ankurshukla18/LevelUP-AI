@@ -22,7 +22,7 @@ export function Sidebar() {
       <div className="p-6">
         <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl text-white">
           <Activity className="h-6 w-6 text-indigo-500" />
-          LifeTrack AI
+          LevelUp AI
         </Link>
       </div>
       <nav className="flex-1 px-4 space-y-2 mt-4">

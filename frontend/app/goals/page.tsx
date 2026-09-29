@@ -67,7 +67,7 @@ export default function GoalsListPage() {
             {goals.map((goal) => {
               const categoryName = goal.category ? goal.category.replace("_", " ") : "Custom";
               const targetDateFormatted = goal.target_date ? new Date(goal.target_date).toLocaleDateString() : "No deadline";
-              const progressPct = goal.progress || (goal.status === "completed" ? 100 : 0);
+              const progressPct = goal.progress_percentage ?? (goal.status === "completed" ? 100 : 0);
 
               return (
                 <Link
@@ -103,7 +103,7 @@ export default function GoalsListPage() {
                   <div className="space-y-4 pt-4 border-t border-slate-100 mt-2">
                     <div className="flex items-center justify-between text-xs text-slate-500">
                       <span className="flex items-center gap-1">
-                        <Clock size={14} /> {goal.available_hours_per_week || 5} hrs/wk
+                        <Clock size={14} /> {goal.available_hours_per_week ?? 0} hrs/wk
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar size={14} /> Due: {targetDateFormatted}
@@ -116,6 +116,9 @@ export default function GoalsListPage() {
                           <Activity size={12} /> Target
                         </span>
                         <span className="font-semibold text-slate-700">{goal.target_outcome || "In progress"}</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mt-2">
+                        <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}></div>
                       </div>
                     </div>
                   </div>

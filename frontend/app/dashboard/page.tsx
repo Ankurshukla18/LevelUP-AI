@@ -41,23 +41,19 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
-  const overallProgress = analytics ? Math.round(analytics.overall_completion_pct || 0) : 0;
-  const activeGoalsCount = analytics ? analytics.active_goals_count : goals.length;
-  const weeklyCompletion = analytics ? Math.round(analytics.weekly_completion_pct || 0) : 0;
-  const currentStreak = analytics ? analytics.current_streak : 0;
+  const overallProgress = Math.round(analytics?.overall_completion_pct ?? 0);
+  const activeGoalsCount = analytics?.active_goals_count ?? goals.length;
+  const weeklyCompletion = Math.round(analytics?.weekly_completion_pct ?? 0);
+  const currentStreak = analytics?.current_streak ?? 0;
 
-  // Chart data from analytics or fallback
+  // Chart data from analytics
   const chartData = analytics?.weekly_progress_data?.length
     ? analytics.weekly_progress_data.map((wp: any) => ({
         week: `Week ${wp.week}`,
-        taskPct: Math.round(wp.task_pct || 0),
-        timePct: Math.round(wp.time_pct || 0)
+        taskPct: Math.round(wp.task_pct ?? 0),
+        timePct: Math.round(wp.time_pct ?? 0)
       }))
-    : [
-        { week: "Week 1", taskPct: 100, timePct: 94 },
-        { week: "Week 2", taskPct: 80, timePct: 81 },
-        { week: "Week 3", taskPct: 60, timePct: 65 }
-      ];
+    : [];
 
   const categoryIcons: Record<string, any> = {
     academics: { icon: BookOpen, color: "bg-blue-100 text-blue-600" },
@@ -149,28 +145,36 @@ export default function DashboardPage() {
                       <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-indigo-300"></span> Time %</span>
                     </div>
                   </div>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="taskColor" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#2563eb" stopOpacity={0.8}/>
-                            <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
-                          </linearGradient>
-                          <linearGradient id="timeColor" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#818cf8" stopOpacity={0.6}/>
-                            <stop offset="95%" stopColor="#818cf8" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="week" stroke="#94a3b8" fontSize={12} tickLine={false} />
-                        <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} unit="%" domain={[0, 100]} />
-                        <Tooltip />
-                        <Area type="monotone" dataKey="taskPct" name="Task Completion" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#taskColor)" />
-                        <Area type="monotone" dataKey="timePct" name="Time Completion" stroke="#818cf8" strokeWidth={2} fillOpacity={1} fill="url(#timeColor)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
+                  {chartData.length === 0 ? (
+                    <div className="h-64 flex flex-col items-center justify-center text-slate-400 text-center px-4">
+                      <Activity size={36} className="text-slate-300 mb-2" />
+                      <p className="font-medium text-slate-600">No weekly check-in data yet.</p>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm">Complete your weekly check-ins to track task and time completion trends here.</p>
+                    </div>
+                  ) : (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="taskColor" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#2563eb" stopOpacity={0.8}/>
+                              <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                            </linearGradient>
+                            <linearGradient id="timeColor" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#818cf8" stopOpacity={0.6}/>
+                              <stop offset="95%" stopColor="#818cf8" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="week" stroke="#94a3b8" fontSize={12} tickLine={false} />
+                          <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} unit="%" domain={[0, 100]} />
+                          <Tooltip />
+                          <Area type="monotone" dataKey="taskPct" name="Task Completion" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#taskColor)" />
+                          <Area type="monotone" dataKey="timePct" name="Time Completion" stroke="#818cf8" strokeWidth={2} fillOpacity={1} fill="url(#timeColor)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
                 </div>
 
                 {/* Focus Areas / Goals */}
@@ -216,11 +220,11 @@ export default function DashboardPage() {
                             </div>
                             <div className="mt-3">
                               <div className="flex justify-between text-xs text-slate-500 mb-1">
-                                <span>{g.available_hours_per_week || 5} hrs/wk</span>
+                                <span>{g.available_hours_per_week ?? 0} hrs/wk</span>
                                 <span className="font-medium capitalize text-slate-700">{g.status}</span>
                               </div>
                               <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${g.status === "completed" ? 100 : 50}%` }}></div>
+                                <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${Math.min(100, Math.max(0, g.progress_percentage ?? (g.status === "completed" ? 100 : 0)))}%` }}></div>
                               </div>
                             </div>
                           </Link>

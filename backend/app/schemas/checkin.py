@@ -16,12 +16,12 @@ class CheckinTaskResponse(CheckinTaskCreate):
     model_config = ConfigDict(from_attributes=True)
 
 class CheckinBase(BaseModel):
-    hours_spent: float
-    accomplishments: str
-    problems_faced: Optional[str] = None
+    hours_spent: float = Field(ge=0, le=168)
+    accomplishments: str = Field(min_length=1, max_length=5000)
+    problems_faced: Optional[str] = Field(default=None, max_length=5000)
     difficulty_level: DifficultyLevel
     self_rating: int = Field(ge=1, le=10)
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=5000)
 
 class CheckinCreate(CheckinBase):
     week_id: uuid.UUID

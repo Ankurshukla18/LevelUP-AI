@@ -1,15 +1,16 @@
-# LifeTrack AI
+# LevelUp AI
 
-**Plan. Track. Analyze. Improve.**
+## Plan. Track. Analyze. Improve.
 
-LifeTrack AI is a personal progress management platform designed for students. It allows users to create long-term goals, generate AI-powered roadmaps, track weekly progress, compare planned vs actual work, receive AI-generated analysis, and dynamically adjust their roadmap.
+LevelUp AI is an AI-powered personal progress management platform that helps users set goals, generate personalized roadmaps, track progress, analyze performance, and continuously improve.
 
-![LifeTrack AI](https://img.shields.io/badge/LifeTrack-AI-indigo) ![Python](https://img.shields.io/badge/Python-3.11+-blue) ![Next.js](https://img.shields.io/badge/Next.js-15-black) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green)
+![LevelUp AI](https://img.shields.io/badge/LevelUp-AI-indigo) ![Python](https://img.shields.io/badge/Python-3.11+-blue) ![Next.js](https://img.shields.io/badge/Next.js-15-black) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green)
 
 ## Features
 
 - **Smart Goal Creation** — Define goals across categories: Academics, Coding, Fitness, Career, Personal Development
 - **AI-Powered Roadmaps** — Generate intelligent weekly breakdowns customized for your timeline and level
+- **Google OAuth 2.0 & Email Dual-Auth** — Seamless Google sign-in with mandatory first-time password setup and zero duplicate accounts
 - **Weekly Check-ins** — Log progress, hours, challenges, and self-assessment each week
 - **Automated Progress Calculations** — Task completion %, time completion %, consistency %, streaks
 - **AI Weekly Analysis** — Get structured feedback: what went well, what was delayed, recommendations
@@ -51,7 +52,7 @@ AI Service → LLM API (with mock fallback)
 ## Project Structure
 
 ```
-lifetrack-ai/
+levelup-ai/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py              # FastAPI application entry
@@ -147,6 +148,135 @@ python seed_data.py
 
 The API will be available at `http://localhost:8000` with Swagger docs at `http://localhost:8000/docs`.
 
+## PostgreSQL Setup
+
+Follow this comprehensive guide to configure, migrate, and verify your PostgreSQL database layer for LevelUp AI.
+
+### 1. How to Create / Provision a PostgreSQL Database
+- **Local PostgreSQL**:
+  ```sql
+  -- In psql or pgAdmin:
+  CREATE DATABASE "TRACKDB";
+  ```
+- **Hosted Cloud PostgreSQL**:
+  You can provision a managed PostgreSQL instance with providers such as:
+  - [Supabase](https://supabase.com)
+  - [Neon](https://neon.tech)
+  - [AWS RDS](https://aws.amazon.com/rds/postgresql/)
+  - [Render](https://render.com)
+  - [Railway](https://railway.app)
+
+### 2. Where to Obtain DATABASE_URL
+The connection string format follows standard URI conventions:
+```
+postgresql://<USERNAME>:<PASSWORD>@<HOST>:<PORT>/<DATABASE_NAME>
+```
+*For cloud databases requiring TLS/SSL, append `?sslmode=require`.*
+
+### 3. How to Configure `.env`
+Create a `.env` file inside the `backend/` directory by copying `.env.example`:
+```bash
+copy backend\.env.example backend\.env    # Windows
+cp backend/.env.example backend/.env        # macOS/Linux
+```
+Set your `DATABASE_URL`:
+```ini
+DATABASE_URL=postgresql://postgres:Ankur2802@localhost:5432/TRACKDB
+```
+*Note: The application automatically normalizes `postgres://` or `postgresql://` to use the modern `postgresql+psycopg://` driver.*
+
+### 4. How to Install Database Dependencies
+Inside your virtual environment:
+```bash
+cd backend
+pip install -r requirements.txt
+```
+Key database packages installed:
+- `SQLAlchemy>=2.0.0`
+- `alembic>=1.13.0`
+- `psycopg[binary]>=3.1.0`
+- `pydantic-settings>=2.0.0`
+- `bcrypt>=4.0.0`
+
+### 5. How to Run Migrations
+LevelUp AI uses Alembic as the official schema management engine. To apply all migrations up to the latest revision:
+```bash
+alembic upgrade head
+```
+To check current revision state:
+```bash
+alembic current
+```
+To view migration history:
+```bash
+alembic history --verbose
+```
+
+### 6. How to Rollback Migrations
+To revert the most recent migration:
+```bash
+alembic downgrade -1
+```
+To revert all migrations back to a clean state:
+```bash
+alembic downgrade base
+```
+
+### 7. How to Seed Demo Data
+To safely populate development data (demo user Alex, sample multi-category goals, roadmaps, milestones, tasks, check-ins, progress records, and AI analyses):
+```bash
+python -m app.seed
+```
+*The seed script is never executed automatically in production environments.*
+
+### 8. How to Test Database Connectivity
+- **Via HTTP Health Check Endpoint**:
+  ```bash
+  curl http://127.0.0.1:8000/api/health/db
+  ```
+  Expected Response:
+  ```json
+  {
+    "status": "ok",
+    "connected": true,
+    "database": "connected",
+    "dialect": "postgresql",
+    "latency_ms": 1.17,
+    "message": "Database connection verified successfully"
+  }
+  ```
+- **Via Automated Tests**:
+  ```bash
+  pytest tests/test_database_layer.py -v
+  ```
+
+### 9. How to Inspect Tables
+In `psql`:
+```sql
+\c TRACKDB
+\dt
+\d users
+\d goals
+\d roadmaps
+\d milestones
+\d tasks
+\d weekly_checkins
+```
+Or via Python CLI:
+```bash
+python -c "from app.database import engine; from sqlalchemy import inspect; print(inspect(engine).get_table_names())"
+```
+
+### 10. Troubleshooting Common Connection Errors
+| Error Symptom | Cause | Solution |
+|---------------|-------|----------|
+| `connection to server at "localhost", port 5432 failed` | PostgreSQL service not running | Start the service: `net start postgresql-x64-18` (Windows) or `sudo systemctl start postgresql` (Linux). |
+| `password authentication failed for user "postgres"` | Incorrect credentials in `.env` | Verify your password in `backend/.env`. |
+| `database "TRACKDB" does not exist` | Database has not yet been created | Run `CREATE DATABASE "TRACKDB";` in `psql`. |
+| `ModuleNotFoundError: No module named 'psycopg'` | Driver not installed in virtual environment | Run `pip install "psycopg[binary]"` inside active venv. |
+| `SSL SYSCALL error: EOF detected` | Cloud DB requires SSL mode | Append `?sslmode=require` to `DATABASE_URL`. |
+
+
 ### Frontend Setup
 
 ```bash
@@ -172,12 +302,16 @@ After running the seed script:
 
 ## API Documentation
 
-### Authentication
+### Authentication & OAuth 2.0
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/auth/register` | Register new user |
-| POST | `/api/auth/login` | Login and get JWT token |
-| GET | `/api/auth/me` | Get current user profile |
+| POST | `/api/auth/register` | Register new user with email and password |
+| POST | `/api/auth/login` | Login with email/username and password |
+| GET | `/api/auth/google/url` | Get Google OAuth 2.0 Authorization URL (secrets on backend) |
+| POST | `/api/auth/google/callback` | Exchange OAuth code, auto-create user, check password setup |
+| POST | `/api/auth/create-password` | Mandatory first-time password setup for new Google users |
+| POST | `/api/auth/set-password` | Change/update password for authenticated user |
+| GET | `/api/auth/me` | Get current user profile (includes `has_password`, `oauth_provider`) |
 
 ### Goals
 | Method | Endpoint | Description |
@@ -230,19 +364,54 @@ users ─────────── goals ─────────── 
 
 ## AI Integration
 
-The AI service uses an abstract interface pattern:
+LevelUp AI features a provider-agnostic, multi-provider AI architecture supporting:
+- **OpenAI** — Official OpenAI Python SDK with Responses API & Chat Completions JSON schema support.
+- **Google Gemini** — Official `google-genai` SDK with native JSON structured output mode (`gemini-2.5-flash`).
+- **Groq** — Official `groq` SDK for ultra-low-latency structured inference (`llama-3.3-70b-versatile`).
+- **Mock** — Context-aware offline development fallback.
 
-- **`AIService`** — Abstract base class defining the interface
-- **`MockAIService`** — Context-aware mock that generates realistic responses based on goal category
-- Future: `OpenAIService`, `AnthropicService`, etc.
+### Multi-Provider & Automatic Fallback Chain
+Configure the primary provider and optional sequential fallback list in `backend/.env`:
+```env
+AI_PROVIDER=openai
+AI_FALLBACK_PROVIDERS=gemini,groq
 
-The mock service generates category-specific roadmaps:
-- **Python/Coding:** Variables → Control Flow → Functions → Data Structures → OOP → Projects
-- **DSA/Algorithms:** Arrays → Linked Lists → Trees → Graphs → Dynamic Programming
-- **Fitness:** Foundation → Volume → Strength → Recovery cycles
+OPENAI_API_KEY=your_openai_key
+OPENAI_MODEL=gpt-5.6-luna
 
-All AI calls go through FastAPI — the frontend never directly calls AI providers.
+GEMINI_API_KEY=your_gemini_key
+GEMINI_MODEL=gemini-2.5-flash
 
+GROQ_API_KEY=your_groq_key
+GROQ_MODEL=llama-3.3-70b-versatile
+```
+
+- **Unified Interface (`AIProvider`)**: All providers strictly enforce identical Pydantic output models (`RoadmapData`, `AnalysisResult`, `AdjustmentSuggestion`, `MonthlySummary`).
+- **Bounded Fallback**: Transient availability issues (429 Rate Limit, 502/503/504 Service Unavailable, Network Timeouts) safely attempt each fallback provider at most once.
+- **No Retry Storms**: Schema validation errors are not retried against fallback providers.
+- **Security & Privacy**: All LLM calls execute strictly inside the FastAPI backend. API keys and prompt boundaries are never exposed to client browsers or source control.
+
+## Authentication & Security Architecture
+ 
+LevelUp AI supports dual-authentication with a single unified identity:
+ 
+1. **Google OAuth 2.0 / OpenID Connect**:
+   - Google client secrets are stored exclusively in the backend `.env` (`GOOGLE_CLIENT_SECRET`).
+   - The frontend requests the authorization URL via `GET /api/auth/google/url`.
+   - On first sign-in via Google, the user is automatically created in PostgreSQL with `oauth_provider="google"` and `has_password=False`.
+ 
+2. **Mandatory First-Time Password Setup (`/create-password`)**:
+   - A new Google user is immediately redirected to `/create-password`.
+   - The user must create and confirm a password (minimum 6 characters) before accessing `/dashboard`.
+   - Passwords are encrypted using bcrypt hashing (passwords are never stored in plaintext).
+   - Once set, the user can sign in using **either** "Continue with Google" or traditional email + password.
+ 
+3. **Zero Duplicate Accounts (Single Identity)**:
+   - Both Google OAuth and email login resolve to the **same `user_id`**.
+   - If an existing user logs in with Google, their accounts are automatically linked without duplicate rows.
+   - An existing Google user with an already configured password bypasses the setup page and enters `/dashboard` directly.
+ 
+ 
 ## Progress Calculations
 
 Calculated in Python (not by AI):
@@ -261,12 +430,13 @@ Calculated in Python (not by AI):
 | `ALGORITHM` | JWT algorithm | `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Token expiry | `60` |
 | `AI_API_KEY` | LLM API key (optional) | (empty = mock) |
-| `AI_PROVIDER` | AI provider selection | `mock` |
+| `AI_PROVIDER` | AI provider selection (`openai`, `gemini`, `groq`, `mock`) | `openai` |
 
 ### Frontend (`frontend/.env.local`)
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NEXT_PUBLIC_API_URL` | Backend API URL | `http://localhost:8000` |
+| `NEXT_PUBLIC_CONTACT_EMAIL` | Destination email for Contact Us mailto link | `ankuromshukla161@gmail.com` |
 
 ## Testing
 

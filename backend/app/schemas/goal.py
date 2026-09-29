@@ -6,17 +6,23 @@ from ..models.goal import GoalCategory, GoalPriority, GoalStatus
 
 
 class GoalBase(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=255)
     category: GoalCategory
-    description: Optional[str] = None
+    description: Optional[str] = Field(default=None, max_length=5000)
     start_date: date
     target_date: date
-    current_level: str
-    target_outcome: str
-    available_hours_per_week: float = Field(gt=0)
+    current_level: str = Field(min_length=1, max_length=100)
+    target_outcome: str = Field(min_length=1, max_length=2000)
+    available_hours_per_week: float = Field(gt=0, le=168)
     priority: GoalPriority = GoalPriority.medium
-    motivation: Optional[str] = None
+    motivation: Optional[str] = Field(default=None, max_length=5000)
     preferred_days: Optional[List[str]] = None
+
+    @model_validator(mode="after")
+    def validate_dates(self) -> "GoalBase":
+        if self.target_date < self.start_date:
+            raise ValueError("Target date cannot be before start date.")
+        return self
 
     @model_validator(mode="before")
     @classmethod

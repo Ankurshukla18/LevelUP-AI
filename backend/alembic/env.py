@@ -11,9 +11,11 @@ from app.database import Base, engine
 from app.config import settings
 from app.models import (  # noqa: F401
     User,
+    UserPreferences,
     Goal,
     Roadmap,
     RoadmapWeek,
+    Milestone,
     Task,
     WeeklyCheckin,
     CheckinTask,

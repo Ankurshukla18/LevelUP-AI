@@ -1,8 +1,10 @@
-from .ai_service import AIService
+from .base import AIProvider
 from .schemas import RoadmapData, WeekGen, TaskGen, AnalysisResult, AdjustmentSuggestion, MonthlySummary
 from typing import Dict, Any
 
-class MockAIService(AIService):
+class MockAIService(AIProvider):
+    provider_name: str = "mock"
+    model: str = "mock-engine"
     def generate_roadmap(self, goal_info: Dict[str, Any]) -> RoadmapData:
         duration_weeks = 8 # default mock
         if 'start_date' in goal_info and 'target_date' in goal_info:

@@ -1,99 +1,55 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Navbar from "@/components/layout/navbar";
+import { Mail, ArrowRight } from "lucide-react";
+import { CONTACT_EMAIL } from "@/lib/constants";
 
 export default function ContactPage() {
-  const [formData, setFormData] = useState({ name: "", email: "", subject: "", message: "" });
-  const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setStatus("submitting");
-    
-    // Simulate API call
-    setTimeout(() => {
-      setStatus("success");
-      setFormData({ name: "", email: "", subject: "", message: "" });
-    }, 1000);
-  };
+  const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL || CONTACT_EMAIL;
+  const subject = encodeURIComponent("LevelUp AI Contact");
+  const body = encodeURIComponent("Hello LevelUp AI team,\n\nI would like to contact you regarding:\n");
+  const mailtoUrl = `mailto:${contactEmail}?subject=${subject}&body=${body}`;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <Navbar />
-      
+
       <main className="flex-1 flex items-center justify-center py-12 px-4">
-        <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 w-full max-w-lg">
-          <h1 className="text-3xl font-bold mb-6 text-center text-slate-900">Contact Us</h1>
-          
-          {status === "success" ? (
-            <div className="bg-green-50 text-green-700 p-4 rounded-lg mb-6 text-center">
-              Thank you for reaching out! We will get back to you soon.
-            </div>
-          ) : null}
+        <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 w-full max-w-lg text-center">
+          <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-100">
+            <Mail className="w-7 h-7" />
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">Name</label>
-              <input
-                type="text"
-                id="name"
-                required
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-              <input
-                type="email"
-                id="email"
-                required
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                value={formData.email}
-                onChange={e => setFormData({ ...formData, email: e.target.value })}
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="subject" className="block text-sm font-medium text-slate-700 mb-1">Subject</label>
-              <input
-                type="text"
-                id="subject"
-                required
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                value={formData.subject}
-                onChange={e => setFormData({ ...formData, subject: e.target.value })}
-              />
-            </div>
+          <h1 className="text-3xl font-bold mb-3 text-slate-900">Contact Us</h1>
+          <p className="text-slate-600 text-sm mb-6 leading-relaxed">
+            Have questions, feedback, or need help with your study roadmaps and goals?
+            Reach out directly and our team will get back to you promptly.
+          </p>
 
-            <div>
-              <label htmlFor="message" className="block text-sm font-medium text-slate-700 mb-1">Message</label>
-              <textarea
-                id="message"
-                required
-                rows={4}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
-                value={formData.message}
-                onChange={e => setFormData({ ...formData, message: e.target.value })}
-              ></textarea>
-            </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6 text-left">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Direct Email</p>
+            <p className="text-sm font-medium text-slate-800 break-all select-all font-mono">
+              {contactEmail}
+            </p>
+          </div>
 
-            <button
-              type="submit"
-              disabled={status === "submitting"}
-              className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-70"
-            >
-              {status === "submitting" ? "Sending..." : "Send Message"}
-            </button>
-          </form>
+          <a
+            href={mailtoUrl}
+            className="w-full inline-flex items-center justify-center bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm text-base group"
+          >
+            <span>Contact Us</span>
+            <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-0.5 transition-transform" />
+          </a>
+
+          <p className="text-xs text-slate-400 mt-4">
+            Clicking &quot;Contact Us&quot; will automatically open your device&apos;s default email application.
+          </p>
         </div>
       </main>
-      
+
       <footer className="bg-slate-900 text-slate-400 py-8 text-center mt-auto">
-        <p>&copy; {new Date().getFullYear()} LifeTrack AI. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} LevelUp AI. All rights reserved.</p>
       </footer>
     </div>
   );

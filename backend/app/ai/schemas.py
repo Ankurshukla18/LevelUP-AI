@@ -36,4 +36,7 @@ class MonthlySummary(BaseModel):
     overall_progress: str
     key_achievements: List[str]
     areas_for_improvement: List[str]
+    challenges: Optional[List[str]] = None
+    patterns: Optional[List[str]] = None
+    recommendations: Optional[List[str]] = None
     focus_next_month: str

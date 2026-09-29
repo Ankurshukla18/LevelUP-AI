@@ -1,5 +1,5 @@
 """
-End-to-End Acceptance Test Script for LifeTrack AI
+End-to-End Acceptance Test Script for LevelUp AI
 Simulates the exact user scenario defined in Section 35 of the prompt:
 1. User registers
 2. Creates goal: "Learn Python" (Beginner, 8 hrs/wk, 8 weeks)
@@ -32,7 +32,7 @@ def run_acceptance_scenario():
     # 1. User Registers
     # ----------------------------------------------------
     log_step(1, "User Registers New Account")
-    email = f"student_{date.today().strftime('%Y%m%d')}_{int(date.today().day)}@lifetrack.ai"
+    email = f"student_{date.today().strftime('%Y%m%d')}_{int(date.today().day)}@levelup.ai"
     password = "SecurePassword123!"
     name = "Jordan Student"
 

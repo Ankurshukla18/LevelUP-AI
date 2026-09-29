@@ -6,9 +6,8 @@ from ..schemas.user import (
     UserResponse,
     UserLogin,
     TokenWithUser,
-    GoogleAuthRequest,
-    ForgotPasswordRequest,
-    ResetPasswordRequest,
+    GoogleCallbackRequest,
+    CreateFirstPasswordRequest,
     VerifyEmailRequest,
     SetPasswordRequest,
 )
@@ -31,10 +30,38 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     return auth_service.authenticate_user(db, user)
 
 
-@router.post("/google", response_model=TokenWithUser)
-def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
-    """Authenticate or register a user via Google OAuth."""
-    return auth_service.authenticate_google_user(db, req)
+@router.get("/google/url")
+def get_google_auth_url():
+    """
+    Get Google OAuth 2.0 Authorization URL.
+    Secrets are kept strictly in backend environment variables.
+    """
+    return auth_service.get_google_authorization_url()
+
+
+@router.post("/google/callback", response_model=TokenWithUser)
+def google_callback(req: GoogleCallbackRequest, db: Session = Depends(get_db)):
+    """
+    Handle Google OAuth callback:
+    - Automatically creates user in PostgreSQL users table if new
+    - Seamlessly links to existing account if email already exists
+    - Sets requires_password_setup = True for new Google users without a password
+    - Sets requires_password_setup = False if user already configured a password
+    """
+    return auth_service.process_google_callback(db, req)
+
+
+@router.post("/create-password", response_model=TokenWithUser)
+def create_first_password(
+    req: CreateFirstPasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Mandatory password creation endpoint for new Google users.
+    Once created, the user can log in with either Google or email + password.
+    """
+    return auth_service.create_first_password(db, current_user, req)
 
 
 @router.post("/set-password")
@@ -43,20 +70,8 @@ def set_password(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Allows an authenticated user (such as a Google user) to create or update their password."""
+    """Allows an authenticated user to update their password."""
     return auth_service.set_user_password(db, current_user, req.password)
-
-
-@router.post("/forgot-password")
-def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    """Initiate password reset by requesting a reset token."""
-    return auth_service.request_password_reset(db, req.email)
-
-
-@router.post("/reset-password")
-def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
-    """Reset user password using a valid reset token."""
-    return auth_service.confirm_password_reset(db, req.token, req.new_password)
 
 
 @router.post("/verify-email")

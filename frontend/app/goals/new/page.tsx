@@ -92,7 +92,7 @@ export default function NewGoalPage() {
 
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Create New Goal</h1>
-          <p className="text-slate-500 mt-1">Define your objective and let LifeTrack AI generate your customized roadmap.</p>
+          <p className="text-slate-500 mt-1">Define your objective and let LevelUp AI generate your customized roadmap.</p>
         </div>
 
         {error && (

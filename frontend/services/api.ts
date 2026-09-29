@@ -1,7 +1,7 @@
 import { API_URL } from '@/lib/constants';
 
-class ApiError extends Error {
-  constructor(public status: number, message: string) {
+export class ApiError extends Error {
+  constructor(public status: number, message: string, public details?: any) {
     super(message);
     this.name = 'ApiError';
   }
@@ -24,14 +24,25 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
   if (!response.ok) {
     // Only redirect to login on 401 if it's NOT an auth endpoint itself
     if (response.status === 401 && typeof window !== 'undefined') {
-      if (!endpoint.startsWith('/api/auth/login') && !endpoint.startsWith('/api/auth/register')) {
+      if (!endpoint.startsWith('/api/auth/')) {
         localStorage.removeItem('token');
         window.location.href = '/login';
       }
     }
     const errorData = await response.json().catch(() => ({}));
-    const message = errorData.detail || errorData.message || 'Request failed';
-    throw new ApiError(response.status, message);
+    let message = errorData.detail || errorData.message || 'Request failed';
+    if (Array.isArray(message)) {
+      message = message
+        .map((item: any) => {
+          if (typeof item === 'string') return item;
+          const field = Array.isArray(item.loc) ? item.loc.slice(1).join('.') : '';
+          return field ? `${field}: ${item.msg || 'invalid'}` : (item.msg || JSON.stringify(item));
+        })
+        .join('; ');
+    } else if (typeof message === 'object' && message !== null) {
+      message = JSON.stringify(message);
+    }
+    throw new ApiError(response.status, String(message), errorData);
   }
 
   return response.json();

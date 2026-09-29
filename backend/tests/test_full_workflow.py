@@ -1,4 +1,6 @@
 import pytest
+from unittest.mock import patch
+from app.ai.mock_ai_service import MockAIService
 
 
 @pytest.fixture
@@ -14,7 +16,9 @@ def auth_token(client):
     return res.json()["access_token"]
 
 
-def test_complete_scenario_workflow(client, auth_token):
+@patch("app.routers.roadmap.get_ai_service", return_value=MockAIService())
+@patch("app.routers.ai.get_ai_service", return_value=MockAIService())
+def test_complete_scenario_workflow(mock_ai_srv, mock_rm_srv, client, auth_token):
     headers = {"Authorization": f"Bearer {auth_token}"}
 
     # 1. Create a goal: "Learn Python"
